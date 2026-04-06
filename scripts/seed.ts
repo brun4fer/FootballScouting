@@ -3,19 +3,7 @@ import "dotenv/config";
 import { db } from "../db";
 import { metricDefinitions, positions } from "../db/schema";
 import { DEFAULT_METRIC_DEFINITIONS } from "../lib/default-metrics";
-
-const DEFAULT_POSITIONS = [
-  { name: "GR", displayOrder: 1 },
-  { name: "DD", displayOrder: 2 },
-  { name: "DC", displayOrder: 3 },
-  { name: "DE", displayOrder: 4 },
-  { name: "MDC", displayOrder: 5 },
-  { name: "MC", displayOrder: 6 },
-  { name: "MAC", displayOrder: 7 },
-  { name: "ED", displayOrder: 8 },
-  { name: "EE", displayOrder: 9 },
-  { name: "PL", displayOrder: 10 },
-];
+import { DEFAULT_POSITIONS } from "../lib/default-positions";
 
 async function main() {
   await db.insert(positions).values(DEFAULT_POSITIONS).onConflictDoNothing();

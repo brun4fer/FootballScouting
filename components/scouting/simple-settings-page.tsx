@@ -18,6 +18,7 @@ type Row = {
   name: string;
   displayOrder?: number;
   extra?: string;
+  canDelete?: boolean;
 };
 
 export function SimpleSettingsPage({
@@ -30,6 +31,7 @@ export function SimpleSettingsPage({
   updateAction,
   deleteAction,
   includeDisplayOrder = false,
+  notice,
 }: {
   title: string;
   subtitle: string;
@@ -40,10 +42,28 @@ export function SimpleSettingsPage({
   updateAction: (formData: FormData) => void | Promise<void>;
   deleteAction: (formData: FormData) => void | Promise<void>;
   includeDisplayOrder?: boolean;
+  notice?: {
+    tone: "error" | "info";
+    title: string;
+    description: string;
+  };
 }) {
   return (
     <section className="space-y-6">
       <PageHeader title={title} subtitle={subtitle} />
+
+      {notice ? (
+        <Card className={notice.tone === "error" ? "border-red-500/50" : "border-cyan-500/50"}>
+          <CardHeader>
+            <CardTitle className={notice.tone === "error" ? "text-red-200" : "text-cyan-200"}>
+              {notice.title}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className={notice.tone === "error" ? "text-red-100/90" : "text-cyan-100/90"}>
+            {notice.description}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -112,6 +132,7 @@ export function SimpleSettingsPage({
                         variant="danger"
                         size="sm"
                         message={`Eliminar "${item.name}"?`}
+                        disabled={item.canDelete === false}
                       >
                         Eliminar
                       </ConfirmSubmitButton>

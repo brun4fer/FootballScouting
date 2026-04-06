@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -211,7 +211,45 @@ export async function updatePositionAction(formData: FormData) {
 
 export async function deletePositionAction(formData: FormData) {
   const id = requiredId(formData.get("id"), "Posicao");
-  await db.delete(positions).where(eq(positions.id, id));
+  const position = await db.query.positions.findFirst({
+    columns: {
+      id: true,
+      name: true,
+    },
+    where: (table, { eq }) => eq(table.id, id),
+  });
+
+  const linkedPlayer = await db.query.players.findFirst({
+    columns: {
+      id: true,
+    },
+    where: (table, { eq }) =>
+      or(eq(table.position1Id, id), eq(table.position2Id, id), eq(table.position3Id, id)),
+  });
+
+  if (linkedPlayer) {
+    const query = new URLSearchParams({
+      error: "position-in-use",
+      positionName: position?.name ?? "",
+    });
+    redirect(`/configuracoes/posicoes?${query.toString()}`);
+  }
+
+  try {
+    await db.delete(positions).where(eq(positions.id, id));
+  } catch (error) {
+    const query = new URLSearchParams({
+      error: "position-in-use",
+      positionName: position?.name ?? "",
+    });
+
+    if ((error as { code?: string } | undefined)?.code === "23503") {
+      redirect(`/configuracoes/posicoes?${query.toString()}`);
+    }
+
+    throw error;
+  }
+
   revalidateScoutingPaths();
 }
 

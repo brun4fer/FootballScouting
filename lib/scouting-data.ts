@@ -5,6 +5,7 @@ import {
   competitions,
   metricDefinitions,
   players,
+  positions,
   reports,
   shadowTeams,
   type MetricDefinition,
@@ -14,6 +15,7 @@ import {
   type ShadowTeam,
 } from "@/db/schema";
 import { DEFAULT_METRIC_DEFINITIONS } from "@/lib/default-metrics";
+import { DEFAULT_POSITIONS } from "@/lib/default-positions";
 import { joinPositionNames, matchesPositionFilter } from "@/lib/scouting-helpers";
 
 export type PlayerWithContext = Player & {
@@ -40,9 +42,7 @@ export type ShadowTeamWithPlayers = ShadowTeam & {
 };
 
 async function getPositionsMap() {
-  const rows = await db.query.positions.findMany({
-    orderBy: (table, { asc }) => [asc(table.displayOrder), asc(table.name)],
-  });
+  const rows = await ensurePositions();
 
   return new Map(rows.map((row) => [row.id, row]));
 }
@@ -87,6 +87,22 @@ export async function ensureMetricDefinitions() {
   });
 }
 
+export async function ensurePositions() {
+  const existing = await db.query.positions.findMany({
+    orderBy: (table, { asc }) => [asc(table.displayOrder), asc(table.name)],
+  });
+
+  if (existing.length > 0) {
+    return existing;
+  }
+
+  await db.insert(positions).values(DEFAULT_POSITIONS).onConflictDoNothing();
+
+  return db.query.positions.findMany({
+    orderBy: (table, { asc }) => [asc(table.displayOrder), asc(table.name)],
+  });
+}
+
 export async function getSeasons() {
   return db.query.seasons.findMany({
     orderBy: (table, { desc }) => [desc(table.id)],
@@ -108,8 +124,44 @@ export async function getCompetitions() {
 }
 
 export async function getPositions() {
-  return db.query.positions.findMany({
-    orderBy: (table, { asc }) => [asc(table.displayOrder), asc(table.name)],
+  return ensurePositions();
+}
+
+export async function getPositionsWithUsage() {
+  const [positionRows, playerRows] = await Promise.all([
+    getPositions(),
+    db.query.players.findMany({
+      columns: {
+        position1Id: true,
+        position2Id: true,
+        position3Id: true,
+      },
+    }),
+  ]);
+
+  const usageMap = new Map<number, number>();
+
+  for (const player of playerRows) {
+    const scopedPositions = new Set(
+      [player.position1Id, player.position2Id, player.position3Id].filter(
+        (positionId): positionId is number => typeof positionId === "number",
+      ),
+    );
+
+    for (const positionId of scopedPositions) {
+      usageMap.set(positionId, (usageMap.get(positionId) ?? 0) + 1);
+    }
+  }
+
+  return positionRows.map((position) => {
+    const usageCount = usageMap.get(position.id) ?? 0;
+
+    return {
+      ...position,
+      usageCount,
+      extra: usageCount > 0 ? `Em uso por ${usageCount} jogador(es)` : "Sem atribuicoes",
+      canDelete: usageCount === 0,
+    };
   });
 }
 
@@ -147,13 +199,12 @@ export async function getCompetitionOptions() {
 }
 
 export async function getPositionOptions() {
-  return db.query.positions.findMany({
-    columns: {
-      id: true,
-      name: true,
-    },
-    orderBy: (table, { asc }) => [asc(table.displayOrder), asc(table.name)],
-  });
+  const rows = await ensurePositions();
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+  }));
 }
 
 export async function getPlayers(filters?: {

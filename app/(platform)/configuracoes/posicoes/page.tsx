@@ -4,10 +4,27 @@ import {
   updatePositionAction,
 } from "@/actions/scouting";
 import { SimpleSettingsPage } from "@/components/scouting/simple-settings-page";
-import { getPositions } from "@/lib/scouting-data";
+import { getPositionsWithUsage } from "@/lib/scouting-data";
 
-export default async function PositionsPage() {
-  const positions = await getPositions();
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function PositionsPage({ searchParams }: PageProps) {
+  const params = (await searchParams) ?? {};
+  const positions = await getPositionsWithUsage();
+  const positionName =
+    typeof params.positionName === "string" && params.positionName.trim().length > 0
+      ? params.positionName
+      : "Esta posicao";
+  const notice =
+    params.error === "position-in-use"
+      ? {
+          tone: "error" as const,
+          title: "Posicao em uso",
+          description: `${positionName} nao pode ser eliminada porque ainda esta atribuida a um ou mais jogadores. Remova ou altere primeiro essas fichas.`,
+        }
+      : undefined;
 
   return (
     <SimpleSettingsPage
@@ -20,6 +37,7 @@ export default async function PositionsPage() {
       updateAction={updatePositionAction}
       deleteAction={deletePositionAction}
       includeDisplayOrder
+      notice={notice}
     />
   );
 }
